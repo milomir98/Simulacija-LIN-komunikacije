@@ -269,7 +269,53 @@ static void SerialSend_Task2(void* pvParameters)
 
 static void SerialReceive_Task3(void* pvParameters)
 {
+	uint8_t cc;
 
+	for (;;)
+	{
+		if (xSemaphoreTake(RXC_BinarySemaphore3, portMAX_DELAY) != pdTRUE)
+		{
+			printf("Greska prilikom preuzimanja semafora na kanalu 3\n");
+		}
+
+		if (get_serial_character(COM_CH_3, &cc) != 0)
+		{
+			printf("Greska pri prijemu karaktera na kanalu 3\n");
+		}
+
+		if (cc == (uint8_t)'S')
+		{
+			recPoint_3 = 0;
+		}
+		else if (cc == (uint8_t)'.')
+		{
+			if (xQueueSend(SensorVrijednost_q, &recBuffer_3, 0) != pdTRUE)
+			{
+				printf("Neuspjesno slanje podataka u red\n");
+			}
+
+			recBuffer_3[0] = '\0';
+			recBuffer_3[1] = '\0';
+			recBuffer_3[2] = '\0';
+			recBuffer_3[3] = '\0';
+			recBuffer_3[4] = '\0';
+			recBuffer_3[5] = '\0';
+			recBuffer_3[6] = '\0';
+			recBuffer_3[7] = '\0';
+			recBuffer_3[8] = '\0';
+			recBuffer_3[9] = '\0';
+			recBuffer_3[10] = '\0';
+			recBuffer_3[11] = '\0';
+			recBuffer_3[12] = '\0';
+			recBuffer_3[13] = '\0';
+			recBuffer_3[14] = '\0';
+			recBuffer_3[15] = '\0';
+		}
+		else
+		{
+			recBuffer_3[recPoint_3++] = cc;
+		}
+	}
 }
 
 static void SerialSend_Task3(void* pvParameters)
@@ -297,7 +343,53 @@ static void SerialSend_Task3(void* pvParameters)
 
 static void SerialReceive_Task4(void* pvParameters)
 {
+	uint8_t cc;
 
+	for (;;)
+	{
+		if (xSemaphoreTake(RXC_BinarySemaphore4, portMAX_DELAY) != pdTRUE)
+		{
+			printf("Greska prilikom preuzimanja semafora na kanalu 4\n");
+		}
+
+		if (get_serial_character(COM_CH_4, &cc) != 0)
+		{
+			printf("Greska pri prijemu karaktera na kanalu 4\n");
+		}
+
+		if (cc == (uint8_t)'S')
+		{
+			recPoint_4 = 0;
+		}
+		else if (cc == (uint8_t)'.')
+		{
+			if (xQueueSend(SensorVrijednost_q, &recBuffer_4, 0) != pdTRUE)
+			{
+				printf("Neuspjesno slanje podataka u red\n");
+			}
+
+			recBuffer_4[0] = '\0';
+			recBuffer_4[1] = '\0';
+			recBuffer_4[2] = '\0';
+			recBuffer_4[3] = '\0';
+			recBuffer_4[4] = '\0';
+			recBuffer_4[5] = '\0';
+			recBuffer_4[6] = '\0';
+			recBuffer_4[7] = '\0';
+			recBuffer_4[8] = '\0';
+			recBuffer_4[9] = '\0';
+			recBuffer_4[10] = '\0';
+			recBuffer_4[11] = '\0';
+			recBuffer_4[12] = '\0';
+			recBuffer_4[13] = '\0';
+			recBuffer_4[14] = '\0';
+			recBuffer_4[15] = '\0';
+		}
+		else
+		{
+			recBuffer_4[recPoint_4++] = cc;
+		}
+	}
 }
 
 static void SerialSend_Task4(void* pvParameters)
@@ -365,7 +457,7 @@ static uint32_t prvProcessRXCInterrupt(void)
 			printf("Greska pri slanju podatka\n");
 		}
 	}
-	/*if (get_RXC_status(3) != 0)
+	if (get_RXC_status(3) != 0)
 	{
 		if (xSemaphoreGiveFromISR(RXC_BinarySemaphore3, &higher_priority_task_woken) != pdTRUE)
 		{
@@ -378,7 +470,7 @@ static uint32_t prvProcessRXCInterrupt(void)
 		{
 			printf("Greska pri slanju podatka\n");
 		}
-	}*/
+	}
 	portYIELD_FROM_ISR((uint32_t)higher_priority_task_woken);
 }
 
@@ -430,21 +522,21 @@ void main_demo(void)
 	{
 		printf("Neuspjesna inicijalizacija TX na kanalu 3\n");
 	}
-	/*// Inicijalizacija serijske RX na kanalu 3 //
+	// Inicijalizacija serijske RX na kanalu 3 //
 	if (init_serial_downlink(COM_CH_3) != 0)
 	{
 		printf("Neuspjesna inicijalizacija RX na kanalu 3\n");
-	}*/
+	}
 	// Inicijalizacija serijske TX na kanalu 4 //
 	if (init_serial_uplink(COM_CH_4) != 0)
 	{
 		printf("Neuspjesna inicijalizacija TX na kanalu 4\n");
 	}
 	// Inicijalizacija serijske RX na kanalu 4 //
-	/*if (init_serial_downlink(COM_CH_4) != 0)
+	if (init_serial_downlink(COM_CH_4) != 0)
 	{
 		printf("Neuspjesna inicijalizacija RX na kanalu 4\n");
-	}*/
+	}
 
 	// SERIAL RECEPTION INTERRUPT HANDLER //
 	vPortSetInterruptHandler(portINTERRUPT_SRL_RXC, prvProcessRXCInterrupt);
@@ -552,21 +644,21 @@ void main_demo(void)
 	{
 		printf("Greska prilikom kreiranja taska\n");
 	}
-	/*status = xTaskCreate(SerialReceive_Task3, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
+	status = xTaskCreate(SerialReceive_Task3, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
 	if (status != pdPASS)
 	{
 		printf("Greska prilikom kreiranja taska\n");
-	}*/
+	}
 	status = xTaskCreate(SerialSend_Task3, "STx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_SEND_PRI, NULL);
 	if (status != pdPASS)
 	{
 		printf("Greska prilikom kreiranja taska\n");
 	}
-	/*status = xTaskCreate(SerialReceive_Task4, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
+	status = xTaskCreate(SerialReceive_Task4, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
 	if (status != pdPASS)
 	{
 		printf("Greska prilikom kreiranja taska\n");
-	}*/
+	}
 	status = xTaskCreate(SerialSend_Task4, "STx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_SEND_PRI, NULL);
 	if (status != pdPASS)
 	{
