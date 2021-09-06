@@ -33,8 +33,10 @@
 
 /* TASKS: FORWARD DECLARATIONS */
 static void led_bar_tsk(void* pvParameters);
-static void testiranje_tsk(void* pvParameters);
+static void slanjeNaPC_tsk(void* pvParameters);
 static void parsiranje_tsk(void* pvParameters);
+static void ispisAdreseNa7seg_tsk(void* pvParameters);
+static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters);
 static void SerialSend_Task0(void* pvParameters);
 static void SerialReceive_Task0(void* pvParameters);
 static void SerialSend_Task1(void* pvParameters);
@@ -49,6 +51,7 @@ void main_demo(void);
 
 // GLOBAL VARIABLES //
 static char volatile podaciZaPC[16];
+static uint8_t t_point;
 
 // RECEPTION DATA BUFFER //
 #define R_BUF_SIZE	(32)
@@ -64,7 +67,7 @@ static uint8_t volatile recPoint_3;
 static uint8_t volatile recPoint_4;
 
 /* 7-SEG NUMBER DATABASE - ALL HEX DIGITS */
-static const uint8_t hexnum[] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F};
+static const uint8_t hexnum[] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71};
 
 /* GLOBAL OS-HANDLES */
 static SemaphoreHandle_t RXC_BinarySemaphore0;
@@ -76,10 +79,13 @@ static SemaphoreHandle_t SensID_7_BinSemaphore;
 static SemaphoreHandle_t SensID_8_BinSemaphore;
 static SemaphoreHandle_t SensID_9_BinSemaphore;
 static SemaphoreHandle_t SendToPC_BinSemaphore;
+static SemaphoreHandle_t ResponseToPC_BinSemaphore;
 static QueueHandle_t SensorAkumulatorVrijednost_q;
 static QueueHandle_t SensorAddress_q;
+static QueueHandle_t SensorAddress_7seg_q;
 static QueueHandle_t SensorVrijednost_q;
 static QueueHandle_t SensorVrijednost_PC_q;
+static QueueHandle_t SensorVrijednost_7seg_q;
 
 // Task koji na osnovu pritisnutog tastera na led baru ispisuje na 7seg displej informaciju, brzina osvjezavanja je 100ms
 static void led_bar_tsk(void* pvParameters)
@@ -124,6 +130,10 @@ static void led_bar_tsk(void* pvParameters)
 		if (adresaSenzora[5] != '0')
 		{
 			if (xQueueSend(SensorAddress_q, &adresaSenzora, 0) != pdTRUE)
+			{
+				printf("Greska prilikom upisa u red SensorAddress_LED_q");
+			}
+			if (xQueueSend(SensorAddress_7seg_q, &adresaSenzora, 0) != pdTRUE)
 			{
 				printf("Greska prilikom upisa u red SensorAddress_LED_q");
 			}
@@ -239,6 +249,16 @@ static void SerialReceive_Task1(void* pvParameters)
 				printf("Neuspjesno slanje podataka u red\n");
 			}
 
+			if (xQueueSend(SensorAddress_7seg_q, &recBuffer_1, 0) != pdTRUE)
+			{
+				printf("Greska prilikom upisa u red SensorAddress_LED_q");
+			}
+
+			if (xSemaphoreGive(ResponseToPC_BinSemaphore) != pdTRUE)
+			{
+				printf("Greska pri slanju semafora\n");
+			}
+
 			sinhronizacija = 0;
 			sinhPauza = 0;
 
@@ -257,7 +277,7 @@ static void SerialReceive_Task1(void* pvParameters)
 		}
 	}
 }
-static uint8_t t_point;
+
 static void SerialSend_Task1(void* pvParameters)
 {
 	t_point = 0;
@@ -267,11 +287,39 @@ static void SerialSend_Task1(void* pvParameters)
 		if (t_point > (sizeof(podaciZaPC) - 1))
 		{
 			t_point = 0;
-			xSemaphoreTake(SendToPC_BinSemaphore, portMAX_DELAY);
+
+			podaciZaPC[0] = '\n';
+			podaciZaPC[1] = '\n';
+			podaciZaPC[2] = '\n';
+			podaciZaPC[3] = '\n';
+			podaciZaPC[4] = '\n';
+			podaciZaPC[5] = '\n';
+			podaciZaPC[6] = '\n';
+			podaciZaPC[7] = '\n';
+			podaciZaPC[8] = '\n';
+			podaciZaPC[9] = '\n';
+			podaciZaPC[10] = '\n';
+			podaciZaPC[11] = '\n';
+			podaciZaPC[12] = '\n';
+			podaciZaPC[13] = '\n';
+			podaciZaPC[14] = '\n';
+			podaciZaPC[15] = '\n';
+
+			if (xSemaphoreTake(SendToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
+			{
+				printf("Greska prilikom preuzimanja semafora\n");
+			}
+			if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
+			{
+				printf("Greska prilikom preuzimanja semafora\n");
+			}
 		}
 		else
 		{
-			send_serial_character(COM_CH_1, podaciZaPC[t_point++]);
+			if (send_serial_character(COM_CH_1, podaciZaPC[t_point++]) != 0)
+			{
+				printf("Greska prilikom slanja na serijsku kanal 1\n");
+			}
 			vTaskDelay(pdMS_TO_TICKS(100));
 		}
 	}
@@ -302,6 +350,11 @@ static void SerialReceive_Task2(void* pvParameters)
 			if (xQueueSend(SensorVrijednost_q, &recBuffer_2, 0) != pdTRUE)
 			{
 				printf("Neuspjesno slanje podataka u red\n");
+			}
+
+			if (xQueueSend(SensorVrijednost_7seg_q, &recBuffer_2, 0) != pdTRUE)
+			{
+				printf("Greska prilikom upisa u red SensorAddress_LED_q");
 			}
 
 			recBuffer_2[0] = '\0';
@@ -374,6 +427,11 @@ static void SerialReceive_Task3(void* pvParameters)
 				printf("Neuspjesno slanje podataka u red\n");
 			}
 
+			if (xQueueSend(SensorVrijednost_7seg_q, &recBuffer_3, 0) != pdTRUE)
+			{
+				printf("Greska prilikom upisa u red SensorAddress_LED_q");
+			}
+
 			recBuffer_3[0] = '\0';
 			recBuffer_3[1] = '\0';
 			recBuffer_3[2] = '\0';
@@ -442,6 +500,11 @@ static void SerialReceive_Task4(void* pvParameters)
 			if (xQueueSend(SensorVrijednost_q, &recBuffer_4, 0) != pdTRUE)
 			{
 				printf("Neuspjesno slanje podataka u red\n");
+			}
+
+			if (xQueueSend(SensorVrijednost_7seg_q, &recBuffer_4, 0) != pdTRUE)
+			{
+				printf("Greska prilikom upisa u red SensorAddress_LED_q");
 			}
 
 			recBuffer_4[0] = '\0';
@@ -518,23 +581,83 @@ static void parsiranje_tsk(void* pvParameters)
 	}
 }
 
-// Task za parsiranje, nakon prijema adrese, prosledjuje je dalje akumulatoru koji onda vraca vrijednost senzora
-static void testiranje_tsk(void* pvParameters)
+static void ispisAdreseNa7seg_tsk(void* pvParameters)
 {
-	char rec_buf[8] = { 0 };
+	char rec_buf[20];
+	for (;;)
+	{
+		vTaskDelay(pdMS_TO_TICKS(100));
+
+		if (xQueueReceive(SensorAddress_7seg_q, &rec_buf, portMAX_DELAY) != pdTRUE)
+		{
+			printf("Greska pri preuzimanju vrijednosti iz reda\n");
+		}
+
+		//printf("rec_buf je %s", rec_buf);
+		select_7seg_digit(0); 
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]);
+		select_7seg_digit(1);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]);
+	}
+}
+
+static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
+{
+	char rec_buf[17];
+	uint8_t duzinaNiza = 0;
 
 	for (;;)
 	{
 		vTaskDelay(pdMS_TO_TICKS(100));
+
+		if (xQueueReceive(SensorVrijednost_7seg_q, &rec_buf, portMAX_DELAY) != pdTRUE)
+		{
+			printf("Greska pri preuzimanju vrijednosti iz reda\n");
+		}
+
+		//printf("duzina niza %d", duzinaNiza);
+
+		//printf("rec_buf je %d", duzinaNiza);
+		select_7seg_digit(2);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[0]]);
+		select_7seg_digit(3);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[1]]);
+		select_7seg_digit(4);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[2]]);
+		select_7seg_digit(5);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[3]]);
+		select_7seg_digit(6);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]);
+		select_7seg_digit(7);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]);
+		select_7seg_digit(8);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[6]]);
+		select_7seg_digit(9);
+		set_7seg_digit(hexnum[(uint8_t)rec_buf[7]]);
+
+		//printf("nesto %d\n", ((uint8_t)rec_buf[7] - 48));
+	}
+}
+
+// Task za parsiranje, nakon prijema adrese, prosledjuje je dalje akumulatoru koji onda vraca vrijednost senzora
+static void slanjeNaPC_tsk(void* pvParameters)
+{
+	for (;;)
+	{
+		//vTaskDelay(pdMS_TO_TICKS(100));
 		if (xQueueReceive(SensorVrijednost_q, &podaciZaPC, portMAX_DELAY) != pdTRUE)
 		{
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 		
-		select_7seg_digit(0); //
-		set_7seg_digit(hexnum[(uint8_t)7]); // STOTINA
+		//select_7seg_digit(0); //
+		//set_7seg_digit(hexnum[(uint8_t)7]); // STOTINA
 
 		xSemaphoreGive(SendToPC_BinSemaphore);
+		/*if (xSemaphoreGive(SendToPC_BinSemaphore) != pdTRUE)
+		{
+			printf("Greska pri slanju semafora3\n");
+		}*/
 
 		/*printf("Vrijednost rec_buf je %s\n", rec_buf);
 
@@ -701,6 +824,11 @@ void main_demo(void)
 	{
 		printf("Greska prilikom kreiranja semafora\n");
 	}
+	ResponseToPC_BinSemaphore = xSemaphoreCreateBinary();
+	if (ResponseToPC_BinSemaphore == NULL)
+	{
+		printf("Greska prilikom kreiranja semafora\n");
+	}
 
 	// Kreiranje redova //
 	SensorAkumulatorVrijednost_q = xQueueCreate(4, 16U);
@@ -713,6 +841,11 @@ void main_demo(void)
 	{
 		printf("Greska prilikom kreiranja reda\n");
 	}
+	SensorAddress_7seg_q = xQueueCreate(4, 16U);
+	if (SensorAddress_7seg_q == NULL)
+	{
+		printf("Greska prilikom kreiranja reda\n");
+	}
 	SensorVrijednost_q = xQueueCreate(4, 16U);
 	if (SensorVrijednost_q == NULL)
 	{
@@ -720,6 +853,11 @@ void main_demo(void)
 	}
 	SensorVrijednost_PC_q = xQueueCreate(4, 16U);
 	if (SensorVrijednost_PC_q == NULL)
+	{
+		printf("Greska prilikom kreiranja reda\n");
+	}
+	SensorVrijednost_7seg_q = xQueueCreate(4, 16U);
+	if (SensorVrijednost_7seg_q == NULL)
 	{
 		printf("Greska prilikom kreiranja reda\n");
 	}
@@ -740,8 +878,8 @@ void main_demo(void)
 	}
 
 	status = xTaskCreate(
-		testiranje_tsk,
-		"testiranje_tsk",
+		slanjeNaPC_tsk,
+		"lanjeNaPC_tsk",
 		configMINIMAL_STACK_SIZE,
 		NULL,
 		(UBaseType_t)SERVICE_TASK_PRI,
@@ -755,6 +893,32 @@ void main_demo(void)
 	status = xTaskCreate(
 		parsiranje_tsk,
 		"parsiranje_tsk",
+		configMINIMAL_STACK_SIZE,
+		NULL,
+		(UBaseType_t)SERVICE_TASK_PRI,
+		NULL
+	);
+	if (status != pdPASS)
+	{
+		printf("Greska prilikom kreiranja taska\n");
+	}
+
+	status = xTaskCreate(
+		ispisAdreseNa7seg_tsk,
+		"ispisAdreseNa7seg_tsk",
+		configMINIMAL_STACK_SIZE,
+		NULL,
+		(UBaseType_t)SERVICE_TASK_PRI,
+		NULL
+	);
+	if (status != pdPASS)
+	{
+		printf("Greska prilikom kreiranja taska\n");
+	}
+
+	status = xTaskCreate(
+		ispisVrijednostiSenzoraNa7seg_tsk,
+		"ispisVrijednostiSenzoraNa7seg_tsk",
 		configMINIMAL_STACK_SIZE,
 		NULL,
 		(UBaseType_t)SERVICE_TASK_PRI,
