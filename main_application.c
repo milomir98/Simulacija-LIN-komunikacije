@@ -244,6 +244,11 @@ static void SerialReceive_Task1(void* pvParameters)
 		{
 			recBuffer_1[6] = '\0';
 
+			if (xQueueReset(SensorVrijednost_q) != pdTRUE)
+			{
+				printf("Neuspjesno brisanje reda\n");
+			}
+
 			if (xQueueSend(SensorAddress_q, &recBuffer_1, 0) != pdTRUE)
 			{
 				printf("Neuspjesno slanje podataka u red\n");
@@ -288,7 +293,7 @@ static void SerialSend_Task1(void* pvParameters)
 		{
 			t_point = 0;
 
-			podaciZaPC[0] = '\n';
+			/*podaciZaPC[0] = '\n';
 			podaciZaPC[1] = '\n';
 			podaciZaPC[2] = '\n';
 			podaciZaPC[3] = '\n';
@@ -303,16 +308,16 @@ static void SerialSend_Task1(void* pvParameters)
 			podaciZaPC[12] = '\n';
 			podaciZaPC[13] = '\n';
 			podaciZaPC[14] = '\n';
-			podaciZaPC[15] = '\n';
+			podaciZaPC[15] = '\n';*/
 
 			if (xSemaphoreTake(SendToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
 			{
 				printf("Greska prilikom preuzimanja semafora\n");
 			}
-			if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
+			/*if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
 			{
 				printf("Greska prilikom preuzimanja semafora\n");
-			}
+			}*/
 		}
 		else
 		{
@@ -424,7 +429,7 @@ static void SerialReceive_Task3(void* pvParameters)
 		{
 			if (xQueueSend(SensorVrijednost_q, &recBuffer_3, 0) != pdTRUE)
 			{
-				printf("Neuspjesno slanje podataka u red\n");
+				printf("Neuspjesno slanje podataka u red 8\n");
 			}
 
 			if (xQueueSend(SensorVrijednost_7seg_q, &recBuffer_3, 0) != pdTRUE)
@@ -645,10 +650,33 @@ static void slanjeNaPC_tsk(void* pvParameters)
 	for (;;)
 	{
 		//vTaskDelay(pdMS_TO_TICKS(100));
+		if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
+		{
+			printf("Greska prilikom preuzimanja semafora\n");
+		}
+
+		podaciZaPC[0] = '\n';
+		podaciZaPC[1] = '\n';
+		podaciZaPC[2] = '\n';
+		podaciZaPC[3] = '\n';
+		podaciZaPC[4] = '\n';
+		podaciZaPC[5] = '\n';
+		podaciZaPC[6] = '\n';
+		podaciZaPC[7] = '\n';
+		podaciZaPC[8] = '\n';
+		podaciZaPC[9] = '\n';
+		podaciZaPC[10] = '\n';
+		podaciZaPC[11] = '\n';
+		podaciZaPC[12] = '\n';
+		podaciZaPC[13] = '\n';
+		podaciZaPC[14] = '\n';
+		podaciZaPC[15] = '\n';
+
 		if (xQueueReceive(SensorVrijednost_q, &podaciZaPC, portMAX_DELAY) != pdTRUE)
 		{
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
+
 		
 		//select_7seg_digit(0); //
 		//set_7seg_digit(hexnum[(uint8_t)7]); // STOTINA
