@@ -20,7 +20,7 @@
 #include "HW_access.h"
 
 /* SERIAL SIMULATOR CHANNEL TO USE */
-#define COM_CH_0 (0)
+//#define COM_CH_0 (0)
 #define COM_CH_1 (1)
 #define COM_CH_2 (2)
 #define COM_CH_3 (3)
@@ -37,8 +37,8 @@ static void slanjeNaPC_tsk(void* pvParameters);
 static void parsiranje_tsk(void* pvParameters);
 static void ispisAdreseNa7seg_tsk(void* pvParameters);
 static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters);
-static void SerialSend_Task0(void* pvParameters);
-static void SerialReceive_Task0(void* pvParameters);
+//static void SerialSend_Task0(void* pvParameters);
+//static void SerialReceive_Task0(void* pvParameters);
 static void SerialSend_Task1(void* pvParameters);
 static void SerialReceive_Task1(void* pvParameters);
 static void SerialSend_Task2(void* pvParameters);
@@ -87,11 +87,14 @@ static QueueHandle_t SensorVrijednost_q;
 static QueueHandle_t SensorVrijednost_PC_q;
 static QueueHandle_t SensorVrijednost_7seg_q;
 
-// Task koji na osnovu pritisnutog tastera na led baru ispisuje na 7seg displej informaciju, brzina osvjezavanja je 100ms
+// Task koji na osnovu pritisnutog tastera na led baru salje adresu odredjenom senzoru
+// Skroz donji taster - adresa senzora 0x07, srednji taster - adresa senzora 0x08 i treci taster - adresa senzora 0x09
+// Poruke koje se salju su u obliku LIN poruka odnosno frame - ova, tako da se npr. za adresu 0x07 salje poruka oblika 005507
+// Poruka se salje u dva reda, jedan se koristi za ispis adrese na 7seg displej a drugi za slanje u taskove koji simuliraju vrijednosti senzora
 static void led_bar_tsk(void* pvParameters)
 {
-	uint8_t senzorOcitavanje;
-	char adresaSenzora[7];
+	static uint8_t senzorOcitavanje;
+	static char adresaSenzora[7];
 	adresaSenzora[0] = '0';
 	adresaSenzora[1] = '0';
 	adresaSenzora[2] = '5';
@@ -131,19 +134,18 @@ static void led_bar_tsk(void* pvParameters)
 		{
 			if (xQueueSend(SensorAddress_q, &adresaSenzora, 0) != pdTRUE)
 			{
-				printf("Greska prilikom upisa u red SensorAddress_LED_q");
+				printf("Greska prilikom upisa u red SensorAddress_q");
 			}
 			if (xQueueSend(SensorAddress_7seg_q, &adresaSenzora, 0) != pdTRUE)
 			{
-				printf("Greska prilikom upisa u red SensorAddress_LED_q");
+				printf("Greska prilikom upisa u red SensorAddress_7seg_q");
 			}
 		}
-		//printf("adresa sa led bara %s", adresaSenzora);
 	}
 }
 
 // Task koji sluzi za prijem LIN poruka od akumulatora, koje zapravo predstavljaju vrijednost senzora 
-static void SerialReceive_Task0(void* pvParameters)
+/*static void SerialReceive_Task0(void* pvParameters)
 {
 	uint8_t cc;
 
@@ -192,13 +194,13 @@ static void SerialReceive_Task0(void* pvParameters)
 			recBuffer_0[recPoint_0++] = cc;
 		}
 	}
-}
+}*/
 
 // Task koji sluzi za simulaciju akumulatora, koji salje vrijednost senzora svakih 100ms
 // Realizovan tako sto se svakih 100ms salje adresa senzora
-static void SerialSend_Task0(void* pvParameters)
+/*static void SerialSend_Task0(void* pvParameters)
 {
-	uint8_t adresaSenzora = (uint8_t)'2';
+	static uint8_t adresaSenzora = (uint8_t)'2';
 
 	for (;;)
 	{
@@ -209,13 +211,15 @@ static void SerialSend_Task0(void* pvParameters)
 			printf("Greska prilikom slanja adrese senzora\n");
 		}
 	}
-}
+}*/
 
+// Task koji se koristi za prijem adrese senzora sa PC-a.
+// Ovaj task ujedno ima i provjeru za LIN poruku tako da automatski provjerava da li pristigla poruka ima oblik LIN poruke (npr. 005507)
 static void SerialReceive_Task1(void* pvParameters)
 {
-	uint8_t cc;
-	uint8_t sinhPauza = 0;
-	uint8_t sinhronizacija = 0;
+	static uint8_t cc;
+	static uint8_t sinhPauza = 0;
+	static uint8_t sinhronizacija = 0;
 
 	for (;;)
 	{
@@ -232,7 +236,6 @@ static void SerialReceive_Task1(void* pvParameters)
 		if (cc == (uint8_t)'0' && (sinhPauza<2))
 		{
 			recPoint_1 = 0;
-			//sinhronizacija = 0;
 			recBuffer_1[sinhPauza++] = '0';
 		}
 		else if (cc == (uint8_t)'5' && (sinhPauza == 2) && (sinhronizacija < 2))
@@ -283,6 +286,8 @@ static void SerialReceive_Task1(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za slanje vrijednosti senzora na PC.
+// Kad se sa PC-a posalje adresa senzora, odnosno zatrazi vrijednost odredjenog senzora, ovim taskom se ta vrijednost salje na PC
 static void SerialSend_Task1(void* pvParameters)
 {
 	t_point = 0;
@@ -293,31 +298,10 @@ static void SerialSend_Task1(void* pvParameters)
 		{
 			t_point = 0;
 
-			/*podaciZaPC[0] = '\n';
-			podaciZaPC[1] = '\n';
-			podaciZaPC[2] = '\n';
-			podaciZaPC[3] = '\n';
-			podaciZaPC[4] = '\n';
-			podaciZaPC[5] = '\n';
-			podaciZaPC[6] = '\n';
-			podaciZaPC[7] = '\n';
-			podaciZaPC[8] = '\n';
-			podaciZaPC[9] = '\n';
-			podaciZaPC[10] = '\n';
-			podaciZaPC[11] = '\n';
-			podaciZaPC[12] = '\n';
-			podaciZaPC[13] = '\n';
-			podaciZaPC[14] = '\n';
-			podaciZaPC[15] = '\n';*/
-
 			if (xSemaphoreTake(SendToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
 			{
 				printf("Greska prilikom preuzimanja semafora\n");
 			}
-			/*if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
-			{
-				printf("Greska prilikom preuzimanja semafora\n");
-			}*/
 		}
 		else
 		{
@@ -330,6 +314,8 @@ static void SerialSend_Task1(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za prijem vrijednosti senzora. 
+// Ovaj senzor ima adresu 0x07 i simuliran je preko serijske komunikacije odnosno AdvUniCom kanala 2
 static void SerialReceive_Task2(void* pvParameters)
 {
 	uint8_t cc;
@@ -386,6 +372,9 @@ static void SerialReceive_Task2(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za simulaciju slanja senzora.
+// Kada se salje adresa 0x07, ovaj task salje broj 7 na serijsku komunikaciju kanal 2, tako da se moze simulirati
+// automatski odgovor koji predstavlja vrijednost senzora
 static void SerialSend_Task2(void* pvParameters)
 {
 	char rec_buf[7];
@@ -405,6 +394,8 @@ static void SerialSend_Task2(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za prijem vrijednosti senzora. 
+// Ovaj senzor ima adresu 0x08 i simuliran je preko serijske komunikacije odnosno AdvUniCom kanala 3
 static void SerialReceive_Task3(void* pvParameters)
 {
 	uint8_t cc;
@@ -461,6 +452,9 @@ static void SerialReceive_Task3(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za simulaciju slanja senzora.
+// Kada se salje adresa 0x08, ovaj task salje broj 7 na serijsku komunikaciju kanal 3, tako da se moze simulirati
+// automatski odgovor koji predstavlja vrijednost senzora
 static void SerialSend_Task3(void* pvParameters)
 {
 	char rec_buf[7];
@@ -480,6 +474,8 @@ static void SerialSend_Task3(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za prijem vrijednosti senzora. 
+// Ovaj senzor ima adresu 0x09 i simuliran je preko serijske komunikacije odnosno AdvUniCom kanala 4
 static void SerialReceive_Task4(void* pvParameters)
 {
 	uint8_t cc;
@@ -536,6 +532,9 @@ static void SerialReceive_Task4(void* pvParameters)
 	}
 }
 
+// Task koji se koristi za simulaciju slanja senzora.
+// Kada se salje adresa 0x09, ovaj task salje broj 7 na serijsku komunikaciju kanal 4, tako da se moze simulirati
+// automatski odgovor koji predstavlja vrijednost senzora
 static void SerialSend_Task4(void* pvParameters)
 {
 	char rec_buf[7];
@@ -555,6 +554,8 @@ static void SerialSend_Task4(void* pvParameters)
 	}
 }
 
+// Task za parsiranje. Ovaj task se koristi za prijem adrese senzora (sa PC-a ili tastera LED bara), koji na osnovu
+// primljene adrese dodjeljuje odredjen binarni semafor
 static void parsiranje_tsk(void* pvParameters)
 {
 	char rec_buf[7];
@@ -586,6 +587,7 @@ static void parsiranje_tsk(void* pvParameters)
 	}
 }
 
+// Task koji ispisuje poslednju zatrazenu adresu senzora na 7seg displej
 static void ispisAdreseNa7seg_tsk(void* pvParameters)
 {
 	char rec_buf[20];
@@ -598,7 +600,6 @@ static void ispisAdreseNa7seg_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		//printf("rec_buf je %s", rec_buf);
 		select_7seg_digit(0); 
 		set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]);
 		select_7seg_digit(1);
@@ -606,6 +607,7 @@ static void ispisAdreseNa7seg_tsk(void* pvParameters)
 	}
 }
 
+// Task koji ispisuje vrijednost senzora sa zatrazene adrese na 7seg displej
 static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
 {
 	char rec_buf[17];
@@ -620,9 +622,6 @@ static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		//printf("duzina niza %d", duzinaNiza);
-
-		//printf("rec_buf je %d", duzinaNiza);
 		select_7seg_digit(2);
 		set_7seg_digit(hexnum[(uint8_t)rec_buf[0]]);
 		select_7seg_digit(3);
@@ -639,17 +638,18 @@ static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
 		set_7seg_digit(hexnum[(uint8_t)rec_buf[6]]);
 		select_7seg_digit(9);
 		set_7seg_digit(hexnum[(uint8_t)rec_buf[7]]);
-
-		//printf("nesto %d\n", ((uint8_t)rec_buf[7] - 48));
 	}
 }
 
-// Task za parsiranje, nakon prijema adrese, prosledjuje je dalje akumulatoru koji onda vraca vrijednost senzora
+// Task za slanje vrijednosti senzora na PC. Kad primi red, smjesta ga u globalnu promjenljivu 
+// koja se onda preko taska SerialSent_Task1 salje na PC.
+// On takodje ceka da dobije binarni semafor od taska za prijem poruka od PC-a. Ovo je potrebno
+// da ne bi doslo do zabune odnosno da se u globalnu promjenljivu ne smjesti podatak dobijen
+// kada je vrijednost zatrazena od senzora sa tastera LED bara
 static void slanjeNaPC_tsk(void* pvParameters)
 {
 	for (;;)
 	{
-		//vTaskDelay(pdMS_TO_TICKS(100));
 		if (xSemaphoreTake(ResponseToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
 		{
 			printf("Greska prilikom preuzimanja semafora\n");
@@ -677,22 +677,7 @@ static void slanjeNaPC_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		
-		//select_7seg_digit(0); //
-		//set_7seg_digit(hexnum[(uint8_t)7]); // STOTINA
-
 		xSemaphoreGive(SendToPC_BinSemaphore);
-		/*if (xSemaphoreGive(SendToPC_BinSemaphore) != pdTRUE)
-		{
-			printf("Greska pri slanju semafora3\n");
-		}*/
-
-		/*printf("Vrijednost rec_buf je %s\n", rec_buf);
-
-		if (xQueueSend(SensorVrijednost_PC_q, &rec_buf, 0) != pdTRUE)
-		{
-			printf("Neuspjesno slanje podataka u red\n");
-		}*/
 	}
 }
 
@@ -701,13 +686,13 @@ static uint32_t prvProcessRXCInterrupt(void)
 {
 	BaseType_t higher_priority_task_woken = pdFALSE;
 
-	if (get_RXC_status(0) != 0)
+	/*if (get_RXC_status(0) != 0)
 	{
 		if (xSemaphoreGiveFromISR(RXC_BinarySemaphore0, &higher_priority_task_woken) != pdTRUE)
 		{
 			printf("Greska pri slanju podatka\n");
 		}
-	}
+	}*/
 	if (get_RXC_status(1) != 0)
 	{
 		if (xSemaphoreGiveFromISR(RXC_BinarySemaphore1, &higher_priority_task_woken) != pdTRUE)
@@ -753,7 +738,7 @@ void main_demo(void)
 	}
 
 	// Inicijalizacija serijske TX na kanalu 0 //
-	if (init_serial_uplink(COM_CH_0) != 0)
+	/*if (init_serial_uplink(COM_CH_0) != 0)
 	{
 		printf("Neuspjesna inicijalizacija TX na kanalu 0\n");
 	}
@@ -761,7 +746,7 @@ void main_demo(void)
 	if (init_serial_downlink(COM_CH_0) != 0)
 	{
 		printf("Neuspjesna inicijalizacija RX na kanalu 0\n");
-	}
+	}*/
 	// Inicijalizacija serijske TX na kanalu 1 //
 	if (init_serial_uplink(COM_CH_1) != 0)
 	{
@@ -958,7 +943,7 @@ void main_demo(void)
 	}
 
 	// SERIAL RECEIVER AND SEND TASK //
-	status = xTaskCreate(SerialReceive_Task0, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
+	/*status = xTaskCreate(SerialReceive_Task0, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
 	if (status != pdPASS)
 	{
 		printf("Greska prilikom kreiranja taska\n");
@@ -967,7 +952,7 @@ void main_demo(void)
 	if (status != pdPASS)
 	{
 		printf("Greska prilikom kreiranja taska\n");
-	}
+	}*/
 	status = xTaskCreate(SerialReceive_Task1, "SRx", configMINIMAL_STACK_SIZE, NULL, (UBaseType_t)TASK_SERIAL_REC_PRI, NULL);
 	if (status != pdPASS)
 	{
