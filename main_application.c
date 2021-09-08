@@ -80,7 +80,7 @@ static SemaphoreHandle_t SensID_8_BinSemaphore;
 static SemaphoreHandle_t SensID_9_BinSemaphore;
 static SemaphoreHandle_t SendToPC_BinSemaphore;
 static SemaphoreHandle_t ResponseToPC_BinSemaphore;
-static QueueHandle_t SensorAkumulatorVrijednost_q;
+//static QueueHandle_t SensorAkumulatorVrijednost_q;
 static QueueHandle_t SensorAddress_q;
 static QueueHandle_t SensorAddress_7seg_q;
 static QueueHandle_t SensorVrijednost_q;
@@ -93,8 +93,8 @@ static QueueHandle_t SensorVrijednost_7seg_q;
 // Poruka se salje u dva reda, jedan se koristi za ispis adrese na 7seg displej a drugi za slanje u taskove koji simuliraju vrijednosti senzora
 static void led_bar_tsk(void* pvParameters)
 {
-	static uint8_t senzorOcitavanje;
-	static char adresaSenzora[7];
+	uint8_t senzorOcitavanje;
+	char adresaSenzora[7];
 	adresaSenzora[0] = '0';
 	adresaSenzora[1] = '0';
 	adresaSenzora[2] = '5';
@@ -113,15 +113,15 @@ static void led_bar_tsk(void* pvParameters)
 		}
 
 		// Odredjivanje adrese senzora na osnovu pritisnutog tastera LED bara //
-		if (senzorOcitavanje == 1)
+		if (senzorOcitavanje == (uint8_t)1)
 		{
 			adresaSenzora[5] = '7';
 		}
-		else if (senzorOcitavanje == 2)
+		else if (senzorOcitavanje == (uint8_t)2)
 		{
 			adresaSenzora[5] = '8';
 		}
-		else if (senzorOcitavanje == 4)
+		else if (senzorOcitavanje == (uint8_t)4)
 		{
 			adresaSenzora[5] = '9';
 		}
@@ -217,9 +217,9 @@ static void led_bar_tsk(void* pvParameters)
 // Ovaj task ujedno ima i provjeru za LIN poruku tako da automatski provjerava da li pristigla poruka ima oblik LIN poruke (npr. 005507)
 static void SerialReceive_Task1(void* pvParameters)
 {
-	static uint8_t cc;
-	static uint8_t sinhPauza = 0;
-	static uint8_t sinhronizacija = 0;
+	uint8_t cc;
+	uint8_t sinhPauza = (uint8_t)0;
+	uint8_t sinhronizacija = (uint8_t)0;
 
 	for (;;)
 	{
@@ -233,17 +233,19 @@ static void SerialReceive_Task1(void* pvParameters)
 			printf("Greska pri prijemu karaktera na kanalu 1\n");
 		}
 
-		if (cc == (uint8_t)'0' && (sinhPauza<2))
+		if ( (cc == (uint8_t)'0') && (sinhPauza < (uint8_t)2) )
 		{
 			recPoint_1 = 0;
-			recBuffer_1[sinhPauza++] = '0';
+			recBuffer_1[sinhPauza] = '0';
+			sinhPauza++;
 		}
-		else if (cc == (uint8_t)'5' && (sinhPauza == 2) && (sinhronizacija < 2))
+		else if ( (cc == (uint8_t)'5') && (sinhPauza == (uint8_t)2) && (sinhronizacija < (uint8_t)2) )
 		{
 			recPoint_1 = 4;
-			recBuffer_1[sinhPauza + sinhronizacija++] = '5';
+			recBuffer_1[sinhPauza + sinhronizacija] = '5';
+			sinhronizacija++;
 		}
-		else if (cc == (uint8_t)'3' && (sinhPauza == 2) && (sinhronizacija == 2) && (recPoint_1 == 7))
+		else if ( (cc == (uint8_t)'3') && (sinhPauza == (uint8_t)2) && (sinhronizacija == (uint8_t)2) && (recPoint_1 == (uint8_t)7) )
 		{
 			recBuffer_1[6] = '\0';
 
@@ -267,8 +269,8 @@ static void SerialReceive_Task1(void* pvParameters)
 				printf("Greska pri slanju semafora\n");
 			}
 
-			sinhronizacija = 0;
-			sinhPauza = 0;
+			sinhronizacija = (uint8_t)0;
+			sinhPauza = (uint8_t)0;
 
 			recBuffer_1[0] = '\0';
 			recBuffer_1[1] = '\0';
@@ -281,7 +283,8 @@ static void SerialReceive_Task1(void* pvParameters)
 		}
 		else
 		{
-			recBuffer_1[recPoint_1++] = cc;
+			recBuffer_1[recPoint_1] = (char)cc;
+			recPoint_1++;
 		}
 	}
 }
@@ -290,13 +293,13 @@ static void SerialReceive_Task1(void* pvParameters)
 // Kad se sa PC-a posalje adresa senzora, odnosno zatrazi vrijednost odredjenog senzora, ovim taskom se ta vrijednost salje na PC
 static void SerialSend_Task1(void* pvParameters)
 {
-	t_point = 0;
+	t_point = (uint8_t)0;
 
 	for (;;)
 	{
-		if (t_point > (sizeof(podaciZaPC) - 1))
+		if (t_point > (uint8_t)(sizeof(podaciZaPC) - 1))
 		{
-			t_point = 0;
+			t_point = (uint8_t)0;
 
 			if (xSemaphoreTake(SendToPC_BinSemaphore, portMAX_DELAY) != pdTRUE)
 			{
@@ -305,10 +308,12 @@ static void SerialSend_Task1(void* pvParameters)
 		}
 		else
 		{
-			if (send_serial_character(COM_CH_1, podaciZaPC[t_point++]) != 0)
+			if (send_serial_character(COM_CH_1, podaciZaPC[t_point]) != 0)
 			{
 				printf("Greska prilikom slanja na serijsku kanal 1\n");
 			}
+			t_point++;
+
 			vTaskDelay(pdMS_TO_TICKS(100));
 		}
 	}
@@ -334,7 +339,7 @@ static void SerialReceive_Task2(void* pvParameters)
 
 		if (cc == (uint8_t)'S')
 		{
-			recPoint_2 = 0;
+			recPoint_2 = (uint8_t)0;
 		}
 		else if (cc == (uint8_t)'.')
 		{
@@ -367,7 +372,8 @@ static void SerialReceive_Task2(void* pvParameters)
 		}
 		else
 		{
-			recBuffer_2[recPoint_2++] = cc;
+			recBuffer_2[recPoint_2] = (char)cc;
+			recPoint_2++;
 		}
 	}
 }
@@ -378,7 +384,7 @@ static void SerialReceive_Task2(void* pvParameters)
 static void SerialSend_Task2(void* pvParameters)
 {
 	char rec_buf[7];
-	uint8_t c = (uint8_t)'7';
+	const uint8_t c = (uint8_t)'7';
 
 	for (;;)
 	{
@@ -414,7 +420,7 @@ static void SerialReceive_Task3(void* pvParameters)
 
 		if (cc == (uint8_t)'S')
 		{
-			recPoint_3 = 0;
+			recPoint_3 = (uint8_t)0;
 		}
 		else if (cc == (uint8_t)'.')
 		{
@@ -447,7 +453,8 @@ static void SerialReceive_Task3(void* pvParameters)
 		}
 		else
 		{
-			recBuffer_3[recPoint_3++] = cc;
+			recBuffer_3[recPoint_3] = (char)cc;
+			recPoint_3++;
 		}
 	}
 }
@@ -458,7 +465,7 @@ static void SerialReceive_Task3(void* pvParameters)
 static void SerialSend_Task3(void* pvParameters)
 {
 	char rec_buf[7];
-	uint8_t c = (uint8_t)'8';
+	const uint8_t c = (uint8_t)'8';
 
 	for (;;)
 	{
@@ -494,7 +501,7 @@ static void SerialReceive_Task4(void* pvParameters)
 
 		if (cc == (uint8_t)'S')
 		{
-			recPoint_4 = 0;
+			recPoint_4 = (uint8_t)0;
 		}
 		else if (cc == (uint8_t)'.')
 		{
@@ -527,7 +534,8 @@ static void SerialReceive_Task4(void* pvParameters)
 		}
 		else
 		{
-			recBuffer_4[recPoint_4++] = cc;
+			recBuffer_4[recPoint_4] = (char)cc;
+			recPoint_4++;
 		}
 	}
 }
@@ -538,7 +546,7 @@ static void SerialReceive_Task4(void* pvParameters)
 static void SerialSend_Task4(void* pvParameters)
 {
 	char rec_buf[7];
-	uint8_t c = (uint8_t)'9';
+	const uint8_t c = (uint8_t)'9';
 
 	for (;;)
 	{
@@ -567,23 +575,31 @@ static void parsiranje_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		if (rec_buf[4] == '0' && rec_buf[5] == '7')
+		if ( (rec_buf[4] == '0') && (rec_buf[5] == '7') )
 		{
-			xSemaphoreGive(SensID_7_BinSemaphore);
+			if (xSemaphoreGive(SensID_7_BinSemaphore) != pdTRUE)
+			{
+				printf("Greska pri dodjeli vrijednosti semafora\n");
+			}
 		}
-		else if (rec_buf[4] == '0' && rec_buf[5] == '8')
+		else if ( (rec_buf[4] == '0') && (rec_buf[5] == '8') )
 		{
-			xSemaphoreGive(SensID_8_BinSemaphore);
+			if (xSemaphoreGive(SensID_8_BinSemaphore) != pdTRUE)
+			{
+				printf("Greska pri dodjeli vrijednosti semafora\n");
+			}
 		}
-		else if (rec_buf[4] == '0' && rec_buf[5] == '9')
+		else if ( (rec_buf[4] == '0') && (rec_buf[5] == '9') )
 		{
-			xSemaphoreGive(SensID_9_BinSemaphore);
+			if (xSemaphoreGive(SensID_9_BinSemaphore) != pdTRUE)
+			{
+				printf("Greska pri dodjeli vrijednosti semafora\n");
+			}
 		}
 		else
 		{
 			printf("POGRESNO UNESENA VRIJEDNOST ADRESE");
 		}
-
 	}
 }
 
@@ -591,6 +607,7 @@ static void parsiranje_tsk(void* pvParameters)
 static void ispisAdreseNa7seg_tsk(void* pvParameters)
 {
 	char rec_buf[20];
+
 	for (;;)
 	{
 		vTaskDelay(pdMS_TO_TICKS(100));
@@ -600,10 +617,22 @@ static void ispisAdreseNa7seg_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		select_7seg_digit(0); 
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]);
-		select_7seg_digit(1);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]);
+		if (select_7seg_digit(0) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(1) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
 	}
 }
 
@@ -611,7 +640,6 @@ static void ispisAdreseNa7seg_tsk(void* pvParameters)
 static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
 {
 	char rec_buf[17];
-	uint8_t duzinaNiza = 0;
 
 	for (;;)
 	{
@@ -622,22 +650,70 @@ static void ispisVrijednostiSenzoraNa7seg_tsk(void* pvParameters)
 			printf("Greska pri preuzimanju vrijednosti iz reda\n");
 		}
 
-		select_7seg_digit(2);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[0]]);
-		select_7seg_digit(3);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[1]]);
-		select_7seg_digit(4);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[2]]);
-		select_7seg_digit(5);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[3]]);
-		select_7seg_digit(6);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]);
-		select_7seg_digit(7);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]);
-		select_7seg_digit(8);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[6]]);
-		select_7seg_digit(9);
-		set_7seg_digit(hexnum[(uint8_t)rec_buf[7]]);
+		if (select_7seg_digit(2) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[0]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(3) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[1]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(4) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[2]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(5) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[3]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(6) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[4]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(7) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[5]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(8) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[6]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
+		if (select_7seg_digit(9) != 0)
+		{
+			printf("Greska prilikom izbora cifre 7seg displeja\n");
+		}
+		if (set_7seg_digit(hexnum[(uint8_t)rec_buf[7]]) != 0)
+		{
+			printf("Greska prilikom ispisa na 7seg displej\n");
+		}
 	}
 }
 
@@ -844,11 +920,11 @@ void main_demo(void)
 	}
 
 	// Kreiranje redova //
-	SensorAkumulatorVrijednost_q = xQueueCreate(4, 16U);
+	/*SensorAkumulatorVrijednost_q = xQueueCreate(4, 16U);
 	if (SensorAkumulatorVrijednost_q == NULL)
 	{
 		printf("Greska prilikom kreiranja reda\n");
-	}
+	}*/
 	SensorAddress_q = xQueueCreate(4, 16U);
 	if (SensorAddress_q == NULL)
 	{
