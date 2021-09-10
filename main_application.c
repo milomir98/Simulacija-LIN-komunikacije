@@ -107,7 +107,7 @@ static void led_bar_tsk(void* pvParameters)
 		vTaskDelay(pdMS_TO_TICKS(100));
 		
 		// Provjera koji taster sa LED bara je pritisnut //
-		if (get_LED_BAR(1, &senzorOcitavanje) != 0)
+		if (get_LED_BAR(0, &senzorOcitavanje) != 0)
 		{
 			printf("Greska prilikom ocitavanja senzora\n");
 		}
